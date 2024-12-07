@@ -19,7 +19,6 @@ urlpatterns = [
     path('products/list', PaginatedProductsView.as_view(), name='paginated-products'),
     path('products/recent/', LatestProductsView.as_view(), name='latest-products'),
 
-    # Группировка CRUD операций
     path('products/', create_product, name='product-create'),
     path('products/<slug:slug>/', ProductView.as_view(), name='product-detail'),
     path('products/<slug:slug>/similar/', SimilarProductsView.as_view(), name='similar-products'),  # Похожие продукты

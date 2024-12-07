@@ -25,6 +25,7 @@ class Categories(Model):
     name_en = CharField("Category (English)", max_length=50, default="")
     name_ru = CharField("Категория (Русский)", max_length=50, default="")
     name_uz = CharField("Kategoriya (O'zbek)", max_length=50, default="")
+    icon = ImageField(upload_to='categories/icons/', blank=True, null=True)
     is_linked = BooleanField(default=False)
 
     def __str__(self):
@@ -203,7 +204,7 @@ class Products(Model):
 
 
 class Image(Model):
-    image = ImageField(upload_to='product-image', default='product-image/default.jpg')
+    image = ImageField(upload_to='product-image', default='product-image/default.jpg', blank=True, null=True)
     product = ForeignKey("Products", on_delete=CASCADE)
 
 

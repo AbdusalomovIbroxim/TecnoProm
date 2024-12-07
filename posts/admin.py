@@ -4,7 +4,7 @@ from django.contrib import admin
 # from django.contrib.admin.widgets import FilteredSelectMultiple
 
 from .models import Categories, Products, SubCategories, Country, City, Tag, TagCategory, TagSubcategory, \
-    SubCategoryCategory
+    SubCategoryCategory, Image
 
 
 @admin.register(Country)
@@ -53,12 +53,21 @@ class TagsAdmin(admin.ModelAdmin):
     inlines = [TagsInline, TagsSubcategoryInline]
 
 
+# Inline для изображений
+class ImageInline(admin.TabularInline):  # Можно использовать StackedInline для вертикального отображения
+    model = Image
+    extra = 1  # Количество пустых форм для добавления изображений
+    fields = ('image',)  # Выбираем только поле для изображения
+
+# Обновленный класс ProductsAdmin с изображениями
 @admin.register(Products)
-class FilmsAdmin(admin.ModelAdmin):
+class ProductsAdmin(admin.ModelAdmin):
     list_display = ("title", "create_date", "update_date", "is_published")
     list_filter = ("is_published",)
     search_fields = ("title",)
     prepopulated_fields = {'slug': ('title',)}
+    
+    inlines = [ImageInline]  # Добавляем Inline для изображений
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "sub_category":

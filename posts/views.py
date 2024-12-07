@@ -3,40 +3,39 @@ from drf_yasg.utils import swagger_auto_schema
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import status, generics
 from .models import Products, Categories, SubCategories, SubCategoryCategory, Tag, Country, City
 from .serializers import ProductSerializer, SubcategorySerializer, TagSerializer, CategorySerializer, CountrySerializer, CitySerializer
 from .filters import ProductFilter
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
 
-# Пагинация
+class LatestProductsView(APIView):
+    permission_classes = [AllowAny, ]
+
+    def get(self, request):
+        product_type = request.GET.get('type')
+        print(product_type)
+        if product_type not in ['buy', 'sell']:
+            return Response({'detail': 'Некорректный тип продукта. Ожидалось "buy" или "sell".'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        products = Products.objects.filter(type=product_type).order_by('-create_date')[:12]
+
+        serializer = ProductSerializer(products, many=True)
+        return Response(serializer.data)
+
+
 class CustomPagination(PageNumberPagination):
     page_size = 40
     page_size_query_param = 'page_size'
     max_page_size = 100
 
-# Вывод последних 15 продуктов типа "купить"
-class LatestProductsView(APIView):
-    def get(self, request):
-        # Получаем тип продукта из запроса
-        product_type = request.GET.get('type')
 
-        # Проверяем валидность типа продукта
-        if product_type not in ['buy', 'sell']:
-            return Response({'detail': 'Некорректный тип продукта. Ожидалось "buy" или "sell".'},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-        # Фильтруем продукты по типу и сортируем по дате
-        products = Products.objects.filter(type=product_type).order_by('-create_date')[:15]
-
-        # Сериализуем данные
-        serializer = ProductSerializer(products, many=True)
-        return Response(serializer.data)
-
-
-# Вывод всех продуктов с пагинацией по 40 продуктов
 class PaginatedProductsView(APIView):
     def get(self, request):
         paginator = CustomPagination()
@@ -54,35 +53,40 @@ class PaginatedProductsView(APIView):
 @api_view(['POST'])
 def create_product(request):
     product_type = request.data.get('type')
-
+    
     if product_type not in ['buy', 'sell']:
         return Response({'detail': 'Некорректный тип продукта. Ожидалось "buy" или "sell".'},
                         status=status.HTTP_400_BAD_REQUEST)
-
-    serializer = ProductSerializer(data=request.data, context={'request': request})
 
     if product_type == 'sell':
         if not request.user.is_authenticated:
             return Response({'detail': 'Требуется авторизация для добавления продукта на продажу.'},
                             status=status.HTTP_401_UNAUTHORIZED)
 
-        user_wallet_balance = request.user.wallet_balance
-        if user_wallet_balance < 10:
+        currency = request.user.currency
+        if currency < 10:
             return Response({'detail': 'Недостаточно баллов для добавления продукта на продажу.'},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        request.user.wallet_balance -= 10
+        request.user.currency -= 10
         request.user.save()
 
+    serializer = ProductSerializer(data=request.data, context={'request': request})
     if serializer.is_valid():
+        print()
+        if request.data['city'] == 'null':
+            serializer.validated_data.pop('city', None)
+
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# CRUD операции для продуктов
 class ProductView(APIView):
+    @swagger_auto_schema(
+        responses={200: ProductSerializer()},
+    )
     def get(self, request, slug):
         try:
             product = Products.objects.get(slug=slug)
@@ -90,18 +94,36 @@ class ProductView(APIView):
             return Response(serializer.data)
         except Products.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-
-    def put(self, request, slug):
+    
+    @swagger_auto_schema(
+        request_body=ProductSerializer,
+        responses={200: ProductSerializer()},
+    )
+    def patch(self, request, slug):
         try:
             product = Products.objects.get(slug=slug)
-            serializer = ProductSerializer(product, data=request.data)
+            
+            # Сохраняем старые изображения, если они есть
+            existing_images = product.image_set.all()
+            images_in_request = request.data.get('images', [])
+            
+            # Если изображения не передаются в запросе, сохраняем старые
+            if not images_in_request:
+                request.data['images'] = [image.id for image in existing_images]
+
+            serializer = ProductSerializer(product, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
-                return Response(serializer.data)
+                return Response(serializer.data, status=status.HTTP_200_OK)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
         except Products.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response({'detail': 'Продукт не найден'}, status=status.HTTP_404_NOT_FOUND)
 
+
+    @swagger_auto_schema(
+        responses={204: 'No Content'}
+    )
     def delete(self, request, slug):
         try:
             product = Products.objects.get(slug=slug)
