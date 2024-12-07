@@ -1,8 +1,8 @@
 .env
 venv
 .idea
-__pycache__
+__pycache__/
 media
 posts/mifrations
-./posts/__pycache__
-./users/__pycache__
+posts/__pycache__
+users/__pycache__
