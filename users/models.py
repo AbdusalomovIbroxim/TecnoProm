@@ -1,5 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+import random, string
+from django.utils import timezone
+from decimal import Decimal
 
 
 class Country(models.Model):
@@ -49,11 +52,11 @@ class Company(models.Model):
 
 class User(AbstractUser):
     telephone = models.CharField(max_length=50, null=True, blank=True)
-    email = models.EmailField(unique=True)
+    # email = models.EmailField(unique=True)
     profile_photo = models.ImageField(upload_to="profile_photos/", default="static/default-logo.svg")
     trust = models.BooleanField(default=False)
     company_name = models.CharField(max_length=100, blank=True,
-                                    null=True)  # Удалить это поле, если теперь используется модель Company
+                                    null=True)
     category = models.ForeignKey(Categories, on_delete=models.SET_NULL, blank=True, null=True,
                                  related_name="user_category")
     subcategories = models.ManyToManyField(SubCategories, blank=True)
@@ -67,6 +70,7 @@ class User(AbstractUser):
     is_business_account = models.BooleanField(default=None, blank=True, null=True)
     currency = models.DecimalField(max_digits=10, decimal_places=3, default=100.000)
     previous_currency = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, editable=False)
+    is_phone_verified = models.BooleanField(default=False)
 
     def __str__(self):
         return self.username
@@ -85,8 +89,35 @@ class User(AbstractUser):
     def _get_previous_value(self, field_name, current_value):
         if self.pk:
             previous_instance = self.__class__._default_manager.get(pk=self.pk)
-            return getattr(previous_instance, field_name)
-        return current_value
+            previous_value = getattr(previous_instance, field_name)
+
+            # Преобразуем оба значения в Decimal
+            return Decimal(previous_value) if previous_value is not None else Decimal(current_value)
+        return Decimal(current_value)
+
+
+class OTPCode(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='otp_codes')
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()  # Время истечения срока действия кода
+    is_used = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"OTP code for {self.user.username} - {self.code}"
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = ''.join(random.choices(string.digits, k=6))
+        self.expires_at = timezone.now() + timezone.timedelta(minutes=10)  # Код будет действовать 10 минут
+        super().save(*args, **kwargs)
+
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+
+    def can_be_used(self):
+        """Проверка, можно ли использовать код"""
+        return not self.is_used and not self.is_expired()
 
 
 class Message(models.Model):
@@ -167,9 +198,11 @@ from django.contrib.auth import get_user_model
 @receiver(post_save, sender=get_user_model())
 def update_currency_transaction(sender, instance, created, **kwargs):
     if not created:
-        previous_currency = instance.previous_currency
+        previous_currency = Decimal(instance.previous_currency)
+        current_currency = Decimal(instance.currency)
+
         PointsTransaction.objects.create(
             user=instance,
-            transaction_type="purchase" if instance.currency > previous_currency else "usage",
-            amount=abs(instance.currency - previous_currency),
+            transaction_type="purchase" if current_currency > previous_currency else "usage",
+            amount=abs(current_currency - previous_currency),
         )
