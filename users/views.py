@@ -29,6 +29,20 @@ def authenticate_by_telephone(telephone, password):
         return None
 
 
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        data = {
+            "id": user.id,
+            "telephone": user.telephone,
+            "is_business_account": user.is_business_account,
+            "telegram": user.telegram,
+        }
+        return Response(data, status=200)
+
+
 class LoginView(APIView):
     @swagger_auto_schema(request_body=LoginSerializer)
     def post(self, request):
@@ -63,7 +77,7 @@ class VerifyPhoneView(APIView):
     @swagger_auto_schema(request_body=VerifyPhoneSerializer)
     def post(self, request):
         serializer = VerifyPhoneSerializer(data=request.data)
-        if serializer.is_valid():
+        if serializer.is_valid(raise_exception=True):
             try:
                 user = User.objects.get(telephone=serializer.validated_data["telephone"])
                 otp = OTPCode.objects.filter(user=user, code=serializer.validated_data["code"]).first()
@@ -88,7 +102,8 @@ class VerifyPhoneView(APIView):
                     return Response({
                         "message": "Телефон успешно подтвержден.",
                         "access_token": access_token,
-                        "refresh_token": str(refresh)
+                        "refresh_token": str(refresh),
+                        "status": status.HTTP_200_OK,
                     })
                 return Response({"error": "Неверный OTP."}, status=status.HTTP_400_BAD_REQUEST)
             except User.DoesNotExist:
