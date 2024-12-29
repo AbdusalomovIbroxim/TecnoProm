@@ -1,12 +1,13 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAdminUser
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_yasg.utils import swagger_auto_schema
 from .models import OTPCode, PointsTransaction
 from .serializers import (
+    UserSerializer,
     LoginSerializer,
     RegisterSerializer,
     VerifyPhoneSerializer,
@@ -14,7 +15,9 @@ from .serializers import (
     UserUpdateSerializer,
     AddPointsSerializer,
 )
-from django.contrib.auth import authenticate
+from rest_framework.exceptions import AuthenticationFailed, ValidationError
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 User = get_user_model()
 
@@ -30,17 +33,23 @@ def authenticate_by_telephone(telephone, password):
 
 
 class MeView(APIView):
+    # authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
-        data = {
-            "id": user.id,
-            "telephone": user.telephone,
-            "is_business_account": user.is_business_account,
-            "telegram": user.telegram,
-        }
-        return Response(data, status=200)
+        # if not request.user.is_authenticated:
+        #     raise AuthenticationFailed("User not authenticated. Please log in and try again.")
+
+        try:
+            if request.user:
+                user = User.objects.get(id=request.user.id)
+                serializer = UserSerializer(user)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            else:
+                print("user yoq")
+                return
+        except Exception as e:
+            raise ValidationError(f"An error occurred while fetching user data: {str(e)}")
 
 
 class LoginView(APIView):
@@ -51,7 +60,6 @@ class LoginView(APIView):
             telephone = serializer.validated_data['telephone']
             password = serializer.validated_data['password']
 
-            # Проверьте пользователя по телефону
             user = authenticate_by_telephone(telephone, password)
             if user is not None:
                 OTPCode.objects.create(user=user)

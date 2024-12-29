@@ -6,6 +6,22 @@ from rest_framework.validators import UniqueValidator
 User = get_user_model()
 
 
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "email",
+            "telephone",
+            "profile_photo",
+            "telegram",
+            "is_business_account",
+            "currency",
+            "is_phone_verified",
+        ]
+
+
 class LoginSerializer(serializers.Serializer):
     telephone = serializers.CharField(max_length=15)  # Телефон
     password = serializers.CharField(write_only=True)  # Пароль

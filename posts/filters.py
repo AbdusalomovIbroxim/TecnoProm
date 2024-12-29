@@ -11,16 +11,15 @@ class ProductFilter(filters.FilterSet):
 
     tag = filters.CharFilter(field_name='tags__id', lookup_expr='exact')
 
+    name = filters.CharFilter(field_name='name', lookup_expr='icontains')
+
     sort = filters.OrderingFilter(
         fields=(
             ('create_date', 'newest'),
             ('-create_date', 'oldest'),
         ),
-        # field_labels={
-        #     'create_date': 'Дата создания',
-        # }
     )
 
     class Meta:
         model = Products
-        fields = ['type', 'subcategory', 'category', 'tag', 'sort']
+        fields = ['type', 'subcategory', 'category', 'tag', 'name', 'sort']

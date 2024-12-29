@@ -1,8 +1,11 @@
+# from django_filters.rest_framework import DjangoFilterBackend
+from django.http import HttpResponseNotFound
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.generics import ListAPIView
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
-from rest_framework.permissions import AllowAny
+# from rest_framework.permissions import AllowAny
 from rest_framework import status, generics
 from .models import Products, Categories, SubCategories, SubCategoryCategory, Tag, Country, City
 from .serializers import (ProductSerializer, SubcategorySerializer, TagSerializer,
@@ -13,7 +16,7 @@ from drf_yasg.utils import swagger_auto_schema
 
 
 class LatestProductsView(APIView):
-    permission_classes = [AllowAny, ]
+    # permission_classes = [AllowAny, ]
 
     def get(self, request):
         product_type = request.GET.get('type')
@@ -29,18 +32,24 @@ class LatestProductsView(APIView):
 
 
 class CustomPagination(PageNumberPagination):
-    page_size = 40
+    page_size = 20
     page_size_query_param = 'page_size'
     max_page_size = 100
 
+    def get_paginated_response(self, data):
+        total_pages = self.page.paginator.num_pages
+        return Response({
+            'totalPages': total_pages,
+            'results': data,
+        })
 
-class PaginatedProductsView(APIView):
-    def get(self, request):
-        paginator = CustomPagination()
-        products = Products.objects.all().order_by('-create_date')
-        paginated_products = paginator.paginate_queryset(products, request)
-        serializer = ProductSerializer(paginated_products, many=True)
-        return paginator.get_paginated_response(serializer.data)
+
+class ProductsView(ListAPIView):
+    queryset = Products.objects.all().order_by('-create_date')
+    serializer_class = ProductSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = ProductFilter
+    pagination_class = CustomPagination
 
 
 @swagger_auto_schema(
@@ -174,22 +183,6 @@ class TagDetailsView(generics.ListAPIView):
         if subcategory_ids:
             queryset = queryset.filter(subcategory_tags__subcategory__id__in=subcategory_ids)
 
-        return queryset
-
-
-class FilteredProductsView(generics.ListAPIView):
-    queryset = Products.objects.all()
-    serializer_class = ProductSerializer
-    filter_backends = (DjangoFilterBackend,)
-    filterset_class = ProductFilter
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        sort = self.request.query_params.get('sort', 'newest')
-        if sort == 'oldest':
-            queryset = queryset.order_by('create_date')
-        else:
-            queryset = queryset.order_by('-create_date')
         return queryset
 
 

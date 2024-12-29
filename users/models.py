@@ -53,7 +53,7 @@ class Company(models.Model):
 class User(AbstractUser):
     telephone = models.CharField(max_length=50, null=True, blank=True)
     # email = models.EmailField(unique=True)
-    profile_photo = models.ImageField(upload_to="profile_photos/", default="static/default-logo.svg")
+    profile_photo = models.ImageField(upload_to="user/avatar/", default="static/default.png")
     trust = models.BooleanField(default=False)
     company_name = models.CharField(max_length=100, blank=True,
                                     null=True)
